@@ -41,7 +41,7 @@ All configuration is via environment variables.
 | `RIG_VISITOR_ENABLED` | Enable task | `true` |
 | `RIG_VISITOR_AUTH_TOKEN` | Token for endpoint authentication | — |
 | `RIG_VISITOR_CHAT_ID` | Telegram chat ID | — |
-| `RIG_VISITOR_TAG` | Label in notifications | `EngiNerd` |
+| `RIG_VISITOR_TAG` | Label in notifications | `Rig` |
 | `RIG_VISITOR_GEOIP_DB` | Path to MaxMind GeoLite2-City database | `/data/geoip/GeoLite2-City.mmdb` |
 
 ### Feed Watcher

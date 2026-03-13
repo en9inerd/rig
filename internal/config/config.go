@@ -86,7 +86,7 @@ func ParseConfig(args []string, getenv func(string) string) (*Config, error) {
 			Enabled:   envBool("RIG_VISITOR_ENABLED", true),
 			AuthToken: env("RIG_VISITOR_AUTH_TOKEN", ""),
 			ChatID:    env("RIG_VISITOR_CHAT_ID", ""),
-			Tag:       env("RIG_VISITOR_TAG", "EngiNerd"),
+			Tag:       env("RIG_VISITOR_TAG", "Rig"),
 			GeoIPDB:   env("RIG_VISITOR_GEOIP_DB", "/data/geoip/GeoLite2-City.mmdb"),
 		},
 		Feed: FeedConfig{

@@ -190,8 +190,22 @@ func (s *Store) flush() error {
 	}
 
 	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0644); err != nil {
+
+	f, err := os.Create(tmp)
+	if err != nil {
 		return err
 	}
+	if _, err := f.Write(raw); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+
 	return os.Rename(tmp, s.path)
 }

@@ -43,8 +43,8 @@ func TestParseConfig_Defaults(t *testing.T) {
 	if !cfg.Visitor.Enabled {
 		t.Error("Visitor.Enabled = false, want true")
 	}
-	if cfg.Visitor.Tag != "EngiNerd" {
-		t.Errorf("Visitor.Tag = %q, want \"EngiNerd\"", cfg.Visitor.Tag)
+	if cfg.Visitor.Tag != "Rig" {
+		t.Errorf("Visitor.Tag = %q, want \"Rig\"", cfg.Visitor.Tag)
 	}
 	if !cfg.Feed.Enabled {
 		t.Error("Feed.Enabled = false, want true")
