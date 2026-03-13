@@ -1,0 +1,31 @@
+services:
+  rig:
+    image: ${DOCKERHUB_USERNAME:-enginerd}/rig:${VERSION:-latest}
+    container_name: rig
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-dev}
+    ports:
+      - "${RIG_PORT:-1330}:8080"
+    env_file: .env
+    volumes:
+      - rig-data:/data
+      - geoip:/data/geoip:ro
+    restart: unless-stopped
+    depends_on:
+      geoipupdate:
+        condition: service_started
+
+  geoipupdate:
+    image: ghcr.io/maxmind/geoipupdate
+    env_file: .env
+    environment:
+      - GEOIPUPDATE_EDITION_IDS=GeoLite2-City
+      - GEOIPUPDATE_FREQUENCY=0
+    volumes:
+      - geoip:/usr/share/GeoIP
+
+volumes:
+  rig-data:
+  geoip:
