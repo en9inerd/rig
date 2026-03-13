@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
-	"strings"
 	"syscall"
 
 	"github.com/en9inerd/rig/internal/config"
@@ -22,21 +21,27 @@ import (
 var version = "dev"
 
 func versionString() string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "rig version %s", version)
+	var revision, buildTime string
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, kv := range info.Settings {
 			switch kv.Key {
 			case "vcs.revision":
 				if len(kv.Value) >= 7 {
-					fmt.Fprintf(&b, " (%s)", kv.Value[:7])
+					revision = kv.Value[:7]
 				}
 			case "vcs.time":
-				fmt.Fprintf(&b, " built %s", kv.Value)
+				buildTime = kv.Value
 			}
 		}
 	}
-	return b.String()
+	s := "rig version " + version
+	if revision != "" {
+		s += " (" + revision + ")"
+	}
+	if buildTime != "" {
+		s += " built " + buildTime
+	}
+	return s
 }
 
 func run(ctx context.Context, args []string, getenv func(string) string) error {
