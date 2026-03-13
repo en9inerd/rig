@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime/debug"
+	"strings"
 	"syscall"
 
 	"github.com/en9inerd/rig/internal/config"
@@ -19,7 +21,32 @@ import (
 
 var version = "dev"
 
+func versionString() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "rig version %s", version)
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, kv := range info.Settings {
+			switch kv.Key {
+			case "vcs.revision":
+				if len(kv.Value) >= 7 {
+					fmt.Fprintf(&b, " (%s)", kv.Value[:7])
+				}
+			case "vcs.time":
+				fmt.Fprintf(&b, " built %s", kv.Value)
+			}
+		}
+	}
+	return b.String()
+}
+
 func run(ctx context.Context, args []string, getenv func(string) string) error {
+	for _, a := range args[1:] {
+		if a == "--version" || a == "-version" {
+			fmt.Println(versionString())
+			return nil
+		}
+	}
+
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
