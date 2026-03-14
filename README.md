@@ -33,6 +33,8 @@ All configuration is via environment variables.
 | `RIG_HTTP_ADDR` | HTTP listen address | `:8080` |
 | `RIG_TELEGRAM_BOT_TOKEN` | Telegram Bot API token | — |
 | `RIG_STORE_PATH` | Path to persistent state file | `/data/rig.json` |
+| `RIG_TLS_CERT` | Path to TLS certificate file | — |
+| `RIG_TLS_KEY` | Path to TLS private key file | — |
 
 ### Visitor Notifier
 

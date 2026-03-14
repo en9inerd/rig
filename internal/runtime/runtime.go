@@ -11,6 +11,7 @@ import (
 
 	"github.com/en9inerd/go-pkgs/middleware"
 	"github.com/en9inerd/go-pkgs/router"
+	"github.com/en9inerd/rig/internal/config"
 	"github.com/en9inerd/rig/internal/tasks"
 )
 
@@ -18,10 +19,11 @@ type Runtime struct {
 	tasks  []tasks.Task
 	logger *slog.Logger
 	addr   string
+	tls    config.TLSConfig
 	router *router.Group
 }
 
-func New(logger *slog.Logger, addr, corsOrigin string) *Runtime {
+func New(logger *slog.Logger, addr, corsOrigin string, tls config.TLSConfig) *Runtime {
 	r := router.New(http.NewServeMux())
 
 	r.Use(
@@ -42,6 +44,7 @@ func New(logger *slog.Logger, addr, corsOrigin string) *Runtime {
 	return &Runtime{
 		logger: logger,
 		addr:   addr,
+		tls:    tls,
 		router: r,
 	}
 }
@@ -100,8 +103,15 @@ func (rt *Runtime) Run(ctx context.Context) error {
 		})
 	}
 
-	rt.logger.Info("listening", "addr", rt.addr)
-	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	var err error
+	if rt.tls.Enabled() {
+		rt.logger.Info("listening (TLS)", "addr", rt.addr)
+		err = httpServer.ListenAndServeTLS(rt.tls.CertFile, rt.tls.KeyFile)
+	} else {
+		rt.logger.Info("listening", "addr", rt.addr)
+		err = httpServer.ListenAndServe()
+	}
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("http server error: %w", err)
 	}
 

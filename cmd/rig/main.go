@@ -76,7 +76,7 @@ func run(ctx context.Context, args []string, getenv func(string) string) error {
 	}
 
 	notifier := notify.NewTelegram(cfg.TelegramBotToken)
-	rt := runtime.New(logger, cfg.HTTPAddr, cfg.CORSOrigin)
+	rt := runtime.New(logger, cfg.HTTPAddr, cfg.CORSOrigin, cfg.TLS)
 
 	if cfg.Visitor.Enabled {
 		rt.Register(visitor.New(notifier, logger, cfg.Visitor))

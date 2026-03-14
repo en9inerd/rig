@@ -28,11 +28,21 @@ type IPConfig struct {
 	ChatID   string
 }
 
+type TLSConfig struct {
+	CertFile string
+	KeyFile  string
+}
+
+func (t TLSConfig) Enabled() bool {
+	return t.CertFile != "" && t.KeyFile != ""
+}
+
 type Config struct {
 	HTTPAddr         string
 	TelegramBotToken string
 	StorePath        string
 	CORSOrigin       string
+	TLS              TLSConfig
 
 	Visitor VisitorConfig
 	Feed    FeedConfig
@@ -81,6 +91,10 @@ func ParseConfig(args []string, getenv func(string) string) (*Config, error) {
 		TelegramBotToken: env("RIG_TELEGRAM_BOT_TOKEN", ""),
 		StorePath:        env("RIG_STORE_PATH", "/data/rig.json"),
 		CORSOrigin:       env("RIG_CORS_ORIGIN", ""),
+		TLS: TLSConfig{
+			CertFile: env("RIG_TLS_CERT", ""),
+			KeyFile:  env("RIG_TLS_KEY", ""),
+		},
 
 		Visitor: VisitorConfig{
 			Enabled:   envBool("RIG_VISITOR_ENABLED", true),

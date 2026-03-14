@@ -7,11 +7,13 @@ services:
       args:
         VERSION: ${VERSION:-dev}
     ports:
-      - "${RIG_PORT:-1330}:8080"
+      - "${RIG_PORT:-1880}:8080"
     env_file: .env
     volumes:
       - rig-data:/data
       - geoip:/data/geoip:ro
+      # Mount your SSL certs directory when using TLS:
+      # - /path/to/certs:/ssl:ro
     restart: unless-stopped
     depends_on:
       geoipupdate:
