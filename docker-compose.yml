@@ -12,8 +12,7 @@ services:
     volumes:
       - rig-data:/data
       - geoip:/data/geoip:ro
-      # Mount your SSL certs directory when using TLS:
-      # - /path/to/certs:/ssl:ro
+      # - /etc/ssl/rig:/ssl:ro
     restart: unless-stopped
     depends_on:
       geoipupdate:

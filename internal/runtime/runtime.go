@@ -65,6 +65,7 @@ func (rt *Runtime) Run(ctx context.Context) error {
 	httpServer := &http.Server{
 		Addr:              rt.addr,
 		Handler:           rt.router,
+		ErrorLog:          slog.NewLogLogger(rt.logger.Handler(), slog.LevelWarn),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
