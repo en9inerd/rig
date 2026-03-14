@@ -9,6 +9,8 @@ services:
     ports:
       - "${RIG_PORT:-1880}:8080"
     env_file: .env
+    environment:
+      - TZ=${TZ:-America/New_York}
     volumes:
       - rig-data:/data
       - geoip:/data/geoip:ro

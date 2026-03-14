@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
+	"time" // also used by commented-out deduplication logic
 
 	"github.com/en9inerd/go-pkgs/httpclient"
 	"github.com/en9inerd/go-pkgs/httpjson"
@@ -19,7 +19,8 @@ import (
 	"github.com/oschwald/geoip2-golang"
 )
 
-const dedupeWindow = 10 * time.Minute
+// Uncomment to enable deduplication (one notification per IP+URL per window).
+// const dedupeWindow = 10 * time.Minute
 
 type Task struct {
 	notifier notify.Notifier
@@ -28,7 +29,7 @@ type Task struct {
 	client   *httpclient.Client
 	geodb    *geoip2.Reader
 	inflight sync.WaitGroup
-	seen     sync.Map // IP → time.Time
+	// seen  sync.Map // IP+URL → time.Time (used with deduplication)
 }
 
 func New(notifier notify.Notifier, logger *slog.Logger, cfg config.VisitorConfig) *Task {
@@ -57,23 +58,26 @@ func New(notifier notify.Notifier, logger *slog.Logger, cfg config.VisitorConfig
 func (t *Task) Name() string { return "visitor" }
 
 func (t *Task) Start(ctx context.Context) error {
-	ticker := time.NewTicker(dedupeWindow)
-	defer ticker.Stop()
+	// Uncomment to enable periodic cleanup of the deduplication map.
+	// ticker := time.NewTicker(dedupeWindow)
+	// defer ticker.Stop()
+	// for {
+	// 	select {
+	// 	case <-ctx.Done():
+	// 		return ctx.Err()
+	// 	case <-ticker.C:
+	// 		cutoff := time.Now().Add(-dedupeWindow)
+	// 		t.seen.Range(func(key, value any) bool {
+	// 			if value.(time.Time).Before(cutoff) {
+	// 				t.seen.Delete(key)
+	// 			}
+	// 			return true
+	// 		})
+	// 	}
+	// }
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			cutoff := time.Now().Add(-dedupeWindow)
-			t.seen.Range(func(key, value any) bool {
-				if value.(time.Time).Before(cutoff) {
-					t.seen.Delete(key)
-				}
-				return true
-			})
-		}
-	}
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 func (t *Task) Stop() {
@@ -122,14 +126,14 @@ func (t *Task) handleVisitor(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
-	// One notification per IP+URL per dedupeWindow.
-	dedupeKey := clientIP + "|" + payload.URL
-	if v, ok := t.seen.Load(dedupeKey); ok {
-		if time.Since(v.(time.Time)) < dedupeWindow {
-			return
-		}
-	}
-	t.seen.Store(dedupeKey, time.Now())
+	// Uncomment to enable deduplication (one notification per IP+URL per window).
+	// dedupeKey := clientIP + "|" + payload.URL
+	// if v, ok := t.seen.Load(dedupeKey); ok {
+	// 	if time.Since(v.(time.Time)) < dedupeWindow {
+	// 		return
+	// 	}
+	// }
+	// t.seen.Store(dedupeKey, time.Now())
 
 	t.inflight.Go(func() {
 		t.processVisitor(clientIP, payload)
@@ -155,11 +159,7 @@ func (t *Task) processVisitor(clientIP string, payload visitorPayload) {
 
 	location := t.geolocate(displayIP)
 
-	loc, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		loc = time.UTC
-	}
-	timestamp := time.Now().In(loc).Format("January 2, 2006 3:04 PM")
+	timestamp := time.Now().Format("January 2, 2006 3:04 PM")
 
 	lines := []string{
 		fmt.Sprintf("Tag: %s", t.cfg.Tag),
