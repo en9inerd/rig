@@ -26,7 +26,7 @@ run:
 	@test -f .env && set -a && . ./.env && set +a; $(GO) run ./cmd/rig
 
 run-verbose:
-	@test -f .env && set -a && . ./.env && set +a; $(GO) run ./cmd/rig --verbose
+	@test -f .env && set -a && . ./.env && set +a; RIG_VERBOSE=true $(GO) run ./cmd/rig
 
 # Docker targets
 docker-build:

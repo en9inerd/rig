@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/en9inerd/go-pkgs/httpclient"
-	"github.com/en9inerd/rig/internal/config"
 	"github.com/en9inerd/rig/internal/notify"
 	"github.com/en9inerd/rig/internal/storage"
 )
@@ -20,13 +19,13 @@ const (
 type Task struct {
 	notifier notify.Notifier
 	logger   *slog.Logger
-	cfg      config.IPConfig
+	cfg      Config
 	client   *httpclient.Client
 	store    *storage.Store
 	lastIP   string
 }
 
-func New(notifier notify.Notifier, logger *slog.Logger, cfg config.IPConfig, store *storage.Store) *Task {
+func New(notifier notify.Notifier, logger *slog.Logger, cfg Config, store *storage.Store) *Task {
 	return &Task{
 		notifier: notifier,
 		logger:   logger.With("task", "ipwatch"),

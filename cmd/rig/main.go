@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -44,31 +47,61 @@ func versionString() string {
 	return s
 }
 
+func generateToken() (string, error) {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func initVisitorSites() error {
+	token, err := generateToken()
+	if err != nil {
+		return err
+	}
+	sites := []visitor.Site{
+		{Name: "site", AuthToken: token, ChatID: "CHANGE_ME", Tag: "site"},
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(sites)
+}
+
 func run(ctx context.Context, args []string, getenv func(string) string) error {
 	for _, a := range args[1:] {
-		if a == "--version" || a == "-version" {
+		switch a {
+		case "--version", "-version":
 			fmt.Println(versionString())
 			return nil
+		case "--init":
+			return initVisitorSites()
 		}
 	}
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	cfg, err := config.ParseConfig(args, getenv)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
-	}
+	cfg := config.ParseConfig(getenv)
 
 	logger := log.NewLogger(cfg.Verbose)
-	logger.Info("starting rig",
-		"version", version,
-		"addr", cfg.HTTPAddr,
-		"store", cfg.StorePath,
-		"visitor", cfg.Visitor.Enabled,
-		"feed", cfg.Feed.Enabled,
-		"ip", cfg.IP.Enabled,
-	)
+
+	vcfg, err := visitor.LoadConfig(getenv)
+	if err != nil {
+		return fmt.Errorf("visitor config: %w", err)
+	}
+	fcfg, err := feedwatch.LoadConfig(getenv)
+	if err != nil {
+		return fmt.Errorf("feedwatch config: %w", err)
+	}
+	icfg, err := ipwatch.LoadConfig(getenv)
+	if err != nil {
+		return fmt.Errorf("ipwatch config: %w", err)
+	}
+
+	if (vcfg != nil || fcfg != nil || icfg != nil) && cfg.TelegramBotToken == "" {
+		return fmt.Errorf("RIG_TELEGRAM_BOT_TOKEN is required when tasks are enabled")
+	}
 
 	store, err := storage.New(cfg.StorePath)
 	if err != nil {
@@ -78,15 +111,24 @@ func run(ctx context.Context, args []string, getenv func(string) string) error {
 	notifier := notify.NewTelegram(cfg.TelegramBotToken)
 	rt := runtime.New(logger, cfg.HTTPAddr, cfg.CORSOrigin, cfg.TLS)
 
-	if cfg.Visitor.Enabled {
-		rt.Register(visitor.New(notifier, logger, cfg.Visitor))
+	if vcfg != nil {
+		rt.Register(visitor.New(notifier, logger, *vcfg))
 	}
-	if cfg.Feed.Enabled {
-		rt.Register(feedwatch.New(notifier, logger, cfg.Feed, store))
+	if fcfg != nil {
+		rt.Register(feedwatch.New(notifier, logger, *fcfg, store))
 	}
-	if cfg.IP.Enabled {
-		rt.Register(ipwatch.New(notifier, logger, cfg.IP, store))
+	if icfg != nil {
+		rt.Register(ipwatch.New(notifier, logger, *icfg, store))
 	}
+
+	logger.Info("starting rig",
+		"version", version,
+		"addr", cfg.HTTPAddr,
+		"store", cfg.StorePath,
+		"visitor", vcfg != nil,
+		"feed", fcfg != nil,
+		"ip", icfg != nil,
+	)
 
 	return rt.Run(ctx)
 }

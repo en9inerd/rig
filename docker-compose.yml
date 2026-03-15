@@ -7,13 +7,29 @@ services:
       args:
         VERSION: ${VERSION:-dev}
     ports:
-      - "${RIG_PORT:-1880}:8080"
-    env_file: .env
+      - "${RIG_PORT:-8080}:8080"
     environment:
       - TZ=${TZ:-America/New_York}
+      - RIG_TELEGRAM_BOT_TOKEN=${RIG_TELEGRAM_BOT_TOKEN}
+      - RIG_STORE_PATH=${RIG_STORE_PATH:-/data/rig.json}
+      - RIG_CORS_ORIGIN=${RIG_CORS_ORIGIN:-}
+      - RIG_TLS_CERT=${RIG_TLS_CERT:-}
+      - RIG_TLS_KEY=${RIG_TLS_KEY:-}
+      - RIG_VERBOSE=${RIG_VERBOSE:-false}
+      - RIG_VISITOR_ENABLED=${RIG_VISITOR_ENABLED:-true}
+      - RIG_VISITOR_SITES_FILE=${RIG_VISITOR_SITES_FILE:-/data/visitors.json}
+      - RIG_VISITOR_GEOIP_DB=${RIG_VISITOR_GEOIP_DB:-/data/geoip/GeoLite2-City.mmdb}
+      - RIG_FEED_ENABLED=${RIG_FEED_ENABLED:-true}
+      - RIG_FEED_URL=${RIG_FEED_URL:-}
+      - RIG_FEED_INTERVAL=${RIG_FEED_INTERVAL:-15m}
+      - RIG_FEED_CHAT_ID=${RIG_FEED_CHAT_ID:-}
+      - RIG_IP_ENABLED=${RIG_IP_ENABLED:-true}
+      - RIG_IP_INTERVAL=${RIG_IP_INTERVAL:-15m}
+      - RIG_IP_CHAT_ID=${RIG_IP_CHAT_ID:-}
     volumes:
       - rig-data:/data
       - geoip:/data/geoip:ro
+      - ./visitors.json:/data/visitors.json:ro
       # - /etc/ssl/rig:/ssl:ro
     restart: unless-stopped
     depends_on:
@@ -22,8 +38,9 @@ services:
 
   geoipupdate:
     image: ghcr.io/maxmind/geoipupdate
-    env_file: .env
     environment:
+      - GEOIPUPDATE_ACCOUNT_ID=${GEOIPUPDATE_ACCOUNT_ID}
+      - GEOIPUPDATE_LICENSE_KEY=${GEOIPUPDATE_LICENSE_KEY}
       - GEOIPUPDATE_EDITION_IDS=GeoLite2-City
       - GEOIPUPDATE_FREQUENCY=0
     volumes:

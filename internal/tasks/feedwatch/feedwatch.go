@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/en9inerd/go-pkgs/httpclient"
-	"github.com/en9inerd/rig/internal/config"
 	"github.com/en9inerd/rig/internal/notify"
 	"github.com/en9inerd/rig/internal/storage"
 )
@@ -21,12 +20,12 @@ const bucket = "feedwatch"
 type Task struct {
 	notifier notify.Notifier
 	logger   *slog.Logger
-	cfg      config.FeedConfig
+	cfg      Config
 	client   *httpclient.Client
 	store    *storage.Store
 }
 
-func New(notifier notify.Notifier, logger *slog.Logger, cfg config.FeedConfig, store *storage.Store) *Task {
+func New(notifier notify.Notifier, logger *slog.Logger, cfg Config, store *storage.Store) *Task {
 	return &Task{
 		notifier: notifier,
 		logger:   logger.With("task", "feedwatch"),

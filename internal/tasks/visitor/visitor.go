@@ -14,7 +14,6 @@ import (
 	"github.com/en9inerd/go-pkgs/httpjson"
 	"github.com/en9inerd/go-pkgs/realip"
 	"github.com/en9inerd/go-pkgs/router"
-	"github.com/en9inerd/rig/internal/config"
 	"github.com/en9inerd/rig/internal/notify"
 	"github.com/oschwald/geoip2-golang"
 )
@@ -25,18 +24,23 @@ import (
 type Task struct {
 	notifier notify.Notifier
 	logger   *slog.Logger
-	cfg      config.VisitorConfig
+	sites    map[string]*Site // authToken → site
 	client   *httpclient.Client
 	geodb    *geoip2.Reader
 	inflight sync.WaitGroup
 	// seen  sync.Map // IP+URL → time.Time (used with deduplication)
 }
 
-func New(notifier notify.Notifier, logger *slog.Logger, cfg config.VisitorConfig) *Task {
+func New(notifier notify.Notifier, logger *slog.Logger, cfg Config) *Task {
+	sites := make(map[string]*Site, len(cfg.Sites))
+	for i := range cfg.Sites {
+		sites[cfg.Sites[i].AuthToken] = &cfg.Sites[i]
+	}
+
 	t := &Task{
 		notifier: notifier,
 		logger:   logger.With("task", "visitor"),
-		cfg:      cfg,
+		sites:    sites,
 		client: httpclient.NewWithConfig(httpclient.Config{
 			Timeout: 10 * time.Second,
 		}),
@@ -88,7 +92,7 @@ func (t *Task) Stop() {
 }
 
 func (t *Task) RegisterRoutes(g *router.Group) {
-	g.HandleFunc("POST /{token}/visitor-notifier", t.handleVisitor)
+	g.HandleFunc("POST /{token}/visitor", t.handleVisitor)
 }
 
 type visitorPayload struct {
@@ -104,10 +108,14 @@ type ipifyResponse struct {
 }
 
 func (t *Task) handleVisitor(w http.ResponseWriter, r *http.Request) {
-	if r.PathValue("token") != t.cfg.AuthToken {
+	site, ok := t.sites[r.PathValue("token")]
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
+
+	// Replace the token in the path so the Logger middleware doesn't log it.
+	r.URL.Path = "/" + site.Name + "/visitor"
 
 	var payload visitorPayload
 	if err := httpjson.DecodeJSONWithLimit(r, &payload, 64<<10); err != nil {
@@ -116,13 +124,14 @@ func (t *Task) handleVisitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract IP before returning the response — *http.Request must not be
-	// read after the handler returns because the server may recycle it.
+	// Extract headers before returning the response — *http.Request must
+	// not be read after the handler returns because the server may recycle it.
 	clientIP, err := realip.Get(r)
 	if err != nil {
 		t.logger.Error("failed to get client IP", "error", err)
 		clientIP = "unknown"
 	}
+	lang := primaryLanguage(r.Header.Get("Accept-Language"))
 
 	w.WriteHeader(http.StatusOK)
 
@@ -136,11 +145,11 @@ func (t *Task) handleVisitor(w http.ResponseWriter, r *http.Request) {
 	// t.seen.Store(dedupeKey, time.Now())
 
 	t.inflight.Go(func() {
-		t.processVisitor(clientIP, payload)
+		t.processVisitor(site, clientIP, lang, payload)
 	})
 }
 
-func (t *Task) processVisitor(clientIP string, payload visitorPayload) {
+func (t *Task) processVisitor(site *Site, clientIP, lang string, payload visitorPayload) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -162,7 +171,7 @@ func (t *Task) processVisitor(clientIP string, payload visitorPayload) {
 	timestamp := time.Now().Format("January 2, 2006 3:04 PM")
 
 	lines := []string{
-		fmt.Sprintf("Tag: %s", t.cfg.Tag),
+		fmt.Sprintf("Tag: %s", site.Tag),
 		fmt.Sprintf("When: %s", timestamp),
 		fmt.Sprintf("IP: %s", displayIP),
 		fmt.Sprintf("Location: %s", location),
@@ -171,10 +180,11 @@ func (t *Task) processVisitor(clientIP string, payload visitorPayload) {
 		fmt.Sprintf("Has Touchscreen: %t", payload.HasTouchScreen),
 		fmt.Sprintf("Referrer: %s", payload.Referrer),
 		fmt.Sprintf("User Agent: %s", payload.UserAgent),
+		fmt.Sprintf("Language: %s", lang),
 	}
 
 	if err := t.notifier.Send(ctx, notify.Message{
-		ChatID:  t.cfg.ChatID,
+		ChatID:  site.ChatID,
 		Content: strings.Join(lines, "\n"),
 		Options: notify.MessageOptions{
 			DisableWebPagePreview: true,
@@ -182,6 +192,17 @@ func (t *Task) processVisitor(clientIP string, payload visitorPayload) {
 	}); err != nil {
 		t.logger.Error("failed to send notification", "error", err)
 	}
+}
+
+// primaryLanguage extracts the first language tag from an Accept-Language header
+// value, e.g. "en-US" from "en-US,en;q=0.9,de;q=0.8".
+func primaryLanguage(accept string) string {
+	if accept == "" {
+		return ""
+	}
+	tag, _, _ := strings.Cut(accept, ",")
+	tag, _, _ = strings.Cut(tag, ";")
+	return strings.TrimSpace(tag)
 }
 
 func (t *Task) geolocate(ipStr string) string {

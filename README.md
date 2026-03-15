@@ -6,7 +6,7 @@ A lightweight automation runtime in Go. Each unit of work is a **task** — a se
 
 | Task | Type | Description |
 |---|---|---|
-| **Visitor Notifier** | HTTP endpoint | Receives visitor data via `POST /{token}/visitor-notifier`, geolocates the IP using a local MaxMind database, and sends a Telegram notification |
+| **Visitor Notifier** | HTTP endpoint | Receives visitor data via `POST /{token}/visitor`, geolocates the IP using a local MaxMind database, and sends a Telegram notification. Supports multiple sites, each with its own token and tag. |
 | **Feed Watcher** | Ticker | Polls an Atom feed at a configurable interval and sends new posts to Telegram |
 | **IP Watcher** | Ticker | Monitors the server's public IP and sends a Telegram notification on change |
 
@@ -17,6 +17,12 @@ Tasks are independent — each manages its own goroutine(s), state, and config. 
 ```bash
 cp .env.example .env
 # Edit .env with your Telegram bot token, chat IDs, and MaxMind credentials
+
+# Generate visitors.json with a random auth token (pick one)
+rig --init > visitors.json                           # local binary
+docker run --rm enginerd/rig --init > visitors.json  # from Docker image
+# Edit visitors.json with your site names and chat IDs
+
 docker compose up -d
 ```
 
@@ -33,18 +39,28 @@ All configuration is via environment variables.
 | `RIG_HTTP_ADDR` | HTTP listen address | `:8080` |
 | `RIG_TELEGRAM_BOT_TOKEN` | Telegram Bot API token | — |
 | `RIG_STORE_PATH` | Path to persistent state file | `/data/rig.json` |
+| `RIG_CORS_ORIGIN` | Allowed CORS origin | — |
 | `RIG_TLS_CERT` | Path to TLS certificate file | — |
 | `RIG_TLS_KEY` | Path to TLS private key file | — |
+| `RIG_VERBOSE` | Enable debug logging | `false` |
 
 ### Visitor Notifier
 
 | Variable | Description | Default |
 |---|---|---|
 | `RIG_VISITOR_ENABLED` | Enable task | `true` |
-| `RIG_VISITOR_AUTH_TOKEN` | Token for endpoint authentication | — |
-| `RIG_VISITOR_CHAT_ID` | Telegram chat ID | — |
-| `RIG_VISITOR_TAG` | Label in notifications | `Rig` |
+| `RIG_VISITOR_SITES_FILE` | Path to JSON file defining visitor sites | — |
 | `RIG_VISITOR_GEOIP_DB` | Path to MaxMind GeoLite2-City database | `/data/geoip/GeoLite2-City.mmdb` |
+
+The sites file is a JSON array. Generate a starter file with `rig --init`, or create one manually:
+
+```json
+[
+  {"name": "blog", "authToken": "TOKEN", "chatId": "CHAT_ID", "tag": "Blog"}
+]
+```
+
+Each site gets its own endpoint: `POST /{authToken}/visitor`. The `tag` field is optional and defaults to the site name.
 
 ### Feed Watcher
 
@@ -88,13 +104,17 @@ make test
 
 ## Adding a Task
 
-1. Create `internal/tasks/yourtask/yourtask.go`
-2. Implement `tasks.Task` (or `tasks.HTTPTask` for HTTP routes)
+1. Create `internal/tasks/yourtask/yourtask.go` — implement `tasks.Task` (or `tasks.HTTPTask` for HTTP routes)
+2. Create `internal/tasks/yourtask/config.go` — define `Config` struct and `LoadConfig(getenv)` that returns `(*Config, error)` (`nil` when `RIG_YOURTASK_ENABLED=false`)
 3. Register in `cmd/rig/main.go`:
 
 ```go
-if cfg.YourTask.Enabled {
-    rt.Register(yourtask.New(notifier, logger, cfg.YourTask))
+ytcfg, err := yourtask.LoadConfig(getenv)
+if err != nil {
+    return fmt.Errorf("yourtask config: %w", err)
+}
+if ytcfg != nil {
+    rt.Register(yourtask.New(notifier, logger, *ytcfg))
 }
 ```
 
