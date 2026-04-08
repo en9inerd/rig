@@ -109,6 +109,61 @@ func TestTelegram_Send_CancelledContext(t *testing.T) {
 	}
 }
 
+func TestTelegram_Send_RetriesOn429(t *testing.T) {
+	attempts := 0
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"ok":false,"description":"Too Many Requests: retry after 1","parameters":{"retry_after":1}}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	tg := &Telegram{
+		client: httpclient.NewWithConfig(httpclient.Config{
+			BaseURL: srv.URL,
+		}),
+	}
+
+	err := tg.Send(context.Background(), Message{ChatID: "123", Content: "test"})
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+}
+
+func TestTelegram_Send_429RespectsContext(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"ok":false,"parameters":{"retry_after":60}}`))
+	}))
+	defer srv.Close()
+
+	tg := &Telegram{
+		client: httpclient.NewWithConfig(httpclient.Config{
+			BaseURL: srv.URL,
+		}),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		// Cancel quickly so we don't wait 60 seconds.
+		cancel()
+	}()
+
+	err := tg.Send(ctx, Message{ChatID: "123", Content: "test"})
+	if err == nil {
+		t.Fatal("expected error for cancelled context during retry wait")
+	}
+}
+
 func TestTelegram_Send_OmitsEmptyParseMode(t *testing.T) {
 	var rawBody map[string]any
 

@@ -3,7 +3,7 @@ module github.com/en9inerd/rig
 go 1.26.1
 
 require (
-	github.com/en9inerd/go-pkgs v0.4.0
+	github.com/en9inerd/go-pkgs v0.4.1
 	github.com/oschwald/geoip2-golang v1.13.0
 )
 

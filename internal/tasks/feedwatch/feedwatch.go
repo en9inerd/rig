@@ -7,15 +7,20 @@ import (
 	"html"
 	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/en9inerd/go-pkgs/httpclient"
 	"github.com/en9inerd/rig/internal/notify"
 	"github.com/en9inerd/rig/internal/storage"
 )
 
-const bucket = "feedwatch"
+const (
+	bucket          = "feedwatch"
+	telegramMaxRunes = 4096
+)
 
 type Task struct {
 	notifier notify.Notifier
@@ -116,33 +121,46 @@ func (e *atomEntry) URL() string {
 	return ""
 }
 
+// indexFold returns the index of the first case-insensitive occurrence of substr in s,
+// or -1 if not found.
+func indexFold(s, substr string) int {
+	n := len(substr)
+	if n > len(s) {
+		return -1
+	}
+	for i := 0; i <= len(s)-n; i++ {
+		if strings.EqualFold(s[i:i+n], substr) {
+			return i
+		}
+	}
+	return -1
+}
+
 func extractParagraphs(s string) []string {
 	var paragraphs []string
-	lower := strings.ToLower(s)
 
 	for {
-		i := strings.Index(lower, "<p")
+		i := indexFold(s, "<p")
 		if i == -1 {
 			break
 		}
 
 		// Must be <p> or <p ...>, not <pre>, <param>, <picture>, etc.
-		if i+2 >= len(lower) {
+		if i+2 >= len(s) {
 			break
 		}
-		if c := lower[i+2]; c != '>' && c != ' ' && c != '\t' && c != '\n' {
-			lower = lower[i+2:]
+		if c := s[i+2]; c != '>' && c != ' ' && c != '\t' && c != '\n' {
 			s = s[i+2:]
 			continue
 		}
 
-		gt := strings.Index(lower[i:], ">")
+		gt := strings.Index(s[i:], ">")
 		if gt == -1 {
 			break
 		}
 		start := i + gt + 1
 
-		end := strings.Index(lower[start:], "</p>")
+		end := indexFold(s[start:], "</p>")
 		if end == -1 {
 			break
 		}
@@ -151,7 +169,6 @@ func extractParagraphs(s string) []string {
 			paragraphs = append(paragraphs, strings.ReplaceAll(text, "&apos;", "'"))
 		}
 
-		lower = lower[start+end+4:]
 		s = s[start+end+4:]
 	}
 
@@ -176,7 +193,14 @@ func (t *Task) check(ctx context.Context) error {
 
 		paragraphs := extractParagraphs(entry.Content)
 		summary := strings.Join(paragraphs, "\n\n")
-		content := fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b><a href=\"%s\">READ MORE</a></b>", html.EscapeString(entry.Title), summary, html.EscapeString(link))
+		escapedTitle := html.EscapeString(entry.Title)
+		escapedLink := html.EscapeString(link)
+		frame := fmt.Sprintf("<b>%s</b>\n\n%%s\n\n<b><a href=\"%s\">READ MORE</a></b>", escapedTitle, escapedLink)
+		maxSummary := telegramMaxRunes - utf8.RuneCountInString(fmt.Sprintf(frame, ""))
+		if utf8.RuneCountInString(summary) > maxSummary {
+			summary = string([]rune(summary)[:maxSummary-1]) + "…"
+		}
+		content := fmt.Sprintf(frame, summary)
 
 		if err := t.notifier.Send(ctx, notify.Message{
 			ChatID:  t.cfg.ChatID,
@@ -211,7 +235,7 @@ func (t *Task) fetchFeed(ctx context.Context) (*atomFeed, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("feed returned status %d", resp.StatusCode)
 	}
 

@@ -1,6 +1,9 @@
 package feedwatch
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestExtractParagraphs_Basic(t *testing.T) {
 	input := "<p>Hello world</p>"
@@ -192,3 +195,35 @@ func TestAtomEntry_URL_NoLinks(t *testing.T) {
 		t.Fatalf("URL = %q, want empty", got)
 	}
 }
+
+func TestIndexFold(t *testing.T) {
+	tests := []struct {
+		s, substr string
+		want      int
+	}{
+		{"Hello World", "hello", 0},
+		{"Hello World", "WORLD", 6},
+		{"abcdef", "CD", 2},
+		{"abcdef", "xyz", -1},
+		{"", "a", -1},
+		{"a", "", 0},
+		{"<P>text</P>", "</p>", 7},
+		{"short", "longer string", -1},
+	}
+	for _, tt := range tests {
+		if got := indexFold(tt.s, tt.substr); got != tt.want {
+			t.Errorf("indexFold(%q, %q) = %d, want %d", tt.s, tt.substr, got, tt.want)
+		}
+	}
+}
+
+func TestExtractParagraphs_Unicode(t *testing.T) {
+	// Ⱥ (U+023A) is 2 bytes, lowercase ⱥ (U+2C65) is 3 bytes.
+	// This previously panicked when using strings.ToLower for offset tracking.
+	input := strings.Repeat("Ⱥ", 10) + "<p>hello</p>"
+	got := extractParagraphs(input)
+	if len(got) != 1 || got[0] != "hello" {
+		t.Fatalf("got %v, want [hello]", got)
+	}
+}
+
