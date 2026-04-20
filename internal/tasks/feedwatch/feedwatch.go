@@ -47,7 +47,7 @@ func (t *Task) Name() string { return "feedwatch" }
 func (t *Task) Start(ctx context.Context) error {
 	if t.store.Len(bucket) == 0 {
 		// First run: seed the store with all current entries so we
-		// only notify on NEW posts — matching Node-RED's ignorefirst behavior.
+		// only notify on NEW posts - matching Node-RED's ignorefirst behavior.
 		if err := t.seedPublished(ctx); err != nil {
 			t.logger.Error("failed to seed published set", "error", err)
 		}

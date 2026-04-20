@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/en9inerd/rig/internal/config"
 )
@@ -16,8 +17,10 @@ type Site struct {
 }
 
 type Config struct {
-	GeoIPDB string
-	Sites   []Site
+	GeoIPDB     string
+	Sites       []Site
+	Dedup       bool
+	DedupWindow time.Duration
 }
 
 func LoadConfig(getenv func(string) string) (*Config, error) {
@@ -35,9 +38,16 @@ func LoadConfig(getenv func(string) string) (*Config, error) {
 		return nil, fmt.Errorf("visitor sites: %w", err)
 	}
 
+	dedupWindow := config.EnvDuration(getenv, "RIG_VISITOR_DEDUP_WINDOW", 10*time.Minute)
+	if dedupWindow <= 0 {
+		return nil, fmt.Errorf("RIG_VISITOR_DEDUP_WINDOW must be positive")
+	}
+
 	return &Config{
-		GeoIPDB: config.Env(getenv, "RIG_VISITOR_GEOIP_DB", "/data/geoip/GeoLite2-City.mmdb"),
-		Sites:   sites,
+		GeoIPDB:     config.Env(getenv, "RIG_VISITOR_GEOIP_DB", "/data/geoip/GeoLite2-City.mmdb"),
+		Sites:       sites,
+		Dedup:       config.EnvBool(getenv, "RIG_VISITOR_DEDUP", false),
+		DedupWindow: dedupWindow,
 	}, nil
 }
 

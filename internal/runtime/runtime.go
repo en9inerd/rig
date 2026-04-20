@@ -85,8 +85,6 @@ func (rt *Runtime) Run(ctx context.Context) error {
 			rt.logger.Error("HTTP server shutdown error", "error", err)
 		}
 
-		// HTTP server fully stopped — all handlers have returned.
-		// Drain any background work spawned by handlers.
 		for _, t := range rt.tasks {
 			if s, ok := t.(tasks.Stopper); ok {
 				s.Stop()

@@ -1,6 +1,6 @@
 # Rig
 
-A lightweight automation runtime in Go. Each unit of work is a **task** — a self-contained module that wires an event source to one or more actions. The runtime manages task lifecycle, shared services, and the HTTP server.
+A lightweight automation runtime in Go. Each unit of work is a **task** - a self-contained module that wires an event source to one or more actions. The runtime manages task lifecycle, shared services, and the HTTP server.
 
 ## Tasks
 
@@ -10,7 +10,7 @@ A lightweight automation runtime in Go. Each unit of work is a **task** — a se
 | **Feed Watcher** | Ticker | Polls an Atom feed at a configurable interval and sends new posts to Telegram |
 | **IP Watcher** | Ticker | Monitors the server's public IP and sends a Telegram notification on change |
 
-Tasks are independent — each manages its own goroutine(s), state, and config. Disable any task via environment variables.
+Tasks are independent, each manages its own goroutine(s), state, and config. Disable any task via environment variables.
 
 ## Quick Start
 
@@ -37,11 +37,11 @@ All configuration is via environment variables.
 | Variable | Description | Default |
 |---|---|---|
 | `RIG_HTTP_ADDR` | HTTP listen address | `:8080` |
-| `RIG_TELEGRAM_BOT_TOKEN` | Telegram Bot API token | — |
+| `RIG_TELEGRAM_BOT_TOKEN` | Telegram Bot API token | - |
 | `RIG_STORE_PATH` | Path to persistent state file | `/data/rig.json` |
-| `RIG_CORS_ORIGIN` | Allowed CORS origin | — |
-| `RIG_TLS_CERT` | Path to TLS certificate file | — |
-| `RIG_TLS_KEY` | Path to TLS private key file | — |
+| `RIG_CORS_ORIGIN` | Allowed CORS origin | - |
+| `RIG_TLS_CERT` | Path to TLS certificate file | - |
+| `RIG_TLS_KEY` | Path to TLS private key file | - |
 | `RIG_VERBOSE` | Enable debug logging | `false` |
 
 ### Visitor Notifier
@@ -49,8 +49,10 @@ All configuration is via environment variables.
 | Variable | Description | Default |
 |---|---|---|
 | `RIG_VISITOR_ENABLED` | Enable task | `true` |
-| `RIG_VISITOR_SITES_FILE` | Path to JSON file defining visitor sites | — |
+| `RIG_VISITOR_SITES_FILE` | Path to JSON file defining visitor sites | - |
 | `RIG_VISITOR_GEOIP_DB` | Path to MaxMind GeoLite2-City database | `/data/geoip/GeoLite2-City.mmdb` |
+| `RIG_VISITOR_DEDUP` | Drop repeat notifications for same IP+URL within the window | `false` |
+| `RIG_VISITOR_DEDUP_WINDOW` | Deduplication window (when enabled) | `10m` |
 
 The sites file is a JSON array. Generate a starter file with `rig --init`, or create one manually:
 
@@ -67,9 +69,9 @@ Each site gets its own endpoint: `POST /{authToken}/visitor`. The `tag` field is
 | Variable | Description | Default |
 |---|---|---|
 | `RIG_FEED_ENABLED` | Enable task | `true` |
-| `RIG_FEED_URL` | Atom/RSS feed URL | — |
+| `RIG_FEED_URL` | Atom/RSS feed URL | - |
 | `RIG_FEED_INTERVAL` | Poll interval | `15m` |
-| `RIG_FEED_CHAT_ID` | Telegram chat ID | — |
+| `RIG_FEED_CHAT_ID` | Telegram chat ID | - |
 
 ### IP Watcher
 
@@ -77,7 +79,7 @@ Each site gets its own endpoint: `POST /{authToken}/visitor`. The `tag` field is
 |---|---|---|
 | `RIG_IP_ENABLED` | Enable task | `true` |
 | `RIG_IP_INTERVAL` | Poll interval | `15m` |
-| `RIG_IP_CHAT_ID` | Telegram chat ID | — |
+| `RIG_IP_CHAT_ID` | Telegram chat ID | - |
 
 ### MaxMind GeoIP (geoipupdate sidecar)
 
@@ -104,8 +106,8 @@ make test
 
 ## Adding a Task
 
-1. Create `internal/tasks/yourtask/yourtask.go` — implement `tasks.Task` (or `tasks.HTTPTask` for HTTP routes)
-2. Create `internal/tasks/yourtask/config.go` — define `Config` struct and `LoadConfig(getenv)` that returns `(*Config, error)` (`nil` when `RIG_YOURTASK_ENABLED=false`)
+1. Create `internal/tasks/yourtask/yourtask.go` - implement `tasks.Task` (or `tasks.HTTPTask` for HTTP routes)
+2. Create `internal/tasks/yourtask/config.go` - define `Config` struct and `LoadConfig(getenv)` that returns `(*Config, error)` (`nil` when `RIG_YOURTASK_ENABLED=false`)
 3. Register in `cmd/rig/main.go`:
 
 ```go

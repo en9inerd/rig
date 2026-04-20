@@ -47,7 +47,7 @@ func (t *Task) Start(ctx context.Context) error {
 	t.lastIPv6, _ = t.store.Get(bucket, ipv6Key)
 
 	// If no persisted state, do an initial fetch to seed the known IPs
-	// without notifying — matching the Node-RED behavior where the inject
+	// without notifying - matching the Node-RED behavior where the inject
 	// node has once=false (first check after the interval, not on deploy).
 	if t.lastIPv4 == "" {
 		if ip, err := t.fetchIPv4(ctx); err == nil {

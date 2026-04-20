@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time" // also used by commented-out deduplication logic
+	"time"
 
 	"github.com/en9inerd/go-pkgs/httpclient"
 	"github.com/en9inerd/go-pkgs/httpjson"
@@ -18,17 +18,16 @@ import (
 	"github.com/oschwald/geoip2-golang"
 )
 
-// Uncomment to enable deduplication (one notification per IP+URL per window).
-// const dedupeWindow = 10 * time.Minute
-
 type Task struct {
-	notifier notify.Notifier
-	logger   *slog.Logger
-	sites    map[string]*Site // authToken → site
-	client   *httpclient.Client
-	geodb    *geoip2.Reader
-	inflight sync.WaitGroup
-	// seen  sync.Map // IP+URL → time.Time (used with deduplication)
+	notifier    notify.Notifier
+	logger      *slog.Logger
+	sites       map[string]*Site
+	client      *httpclient.Client
+	geodb       *geoip2.Reader
+	inflight    sync.WaitGroup
+	dedup       bool
+	dedupWindow time.Duration
+	seen        sync.Map
 }
 
 func New(notifier notify.Notifier, logger *slog.Logger, cfg Config) *Task {
@@ -44,6 +43,8 @@ func New(notifier notify.Notifier, logger *slog.Logger, cfg Config) *Task {
 		client: httpclient.NewWithConfig(httpclient.Config{
 			Timeout: 10 * time.Second,
 		}),
+		dedup:       cfg.Dedup,
+		dedupWindow: cfg.DedupWindow,
 	}
 
 	if cfg.GeoIPDB != "" {
@@ -62,26 +63,27 @@ func New(notifier notify.Notifier, logger *slog.Logger, cfg Config) *Task {
 func (t *Task) Name() string { return "visitor" }
 
 func (t *Task) Start(ctx context.Context) error {
-	// Uncomment to enable periodic cleanup of the deduplication map.
-	// ticker := time.NewTicker(dedupeWindow)
-	// defer ticker.Stop()
-	// for {
-	// 	select {
-	// 	case <-ctx.Done():
-	// 		return ctx.Err()
-	// 	case <-ticker.C:
-	// 		cutoff := time.Now().Add(-dedupeWindow)
-	// 		t.seen.Range(func(key, value any) bool {
-	// 			if value.(time.Time).Before(cutoff) {
-	// 				t.seen.Delete(key)
-	// 			}
-	// 			return true
-	// 		})
-	// 	}
-	// }
+	if !t.dedup {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 
-	<-ctx.Done()
-	return ctx.Err()
+	ticker := time.NewTicker(t.dedupWindow)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			cutoff := time.Now().Add(-t.dedupWindow)
+			t.seen.Range(func(key, value any) bool {
+				if value.(time.Time).Before(cutoff) {
+					t.seen.Delete(key)
+				}
+				return true
+			})
+		}
+	}
 }
 
 func (t *Task) Stop() {
@@ -124,7 +126,7 @@ func (t *Task) handleVisitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract headers before returning the response — *http.Request must
+	// Extract headers before returning the response - *http.Request must
 	// not be read after the handler returns because the server may recycle it.
 	clientIP, err := realip.Get(r)
 	if err != nil {
@@ -135,14 +137,15 @@ func (t *Task) handleVisitor(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
-	// Uncomment to enable deduplication (one notification per IP+URL per window).
-	// dedupeKey := clientIP + "|" + payload.URL
-	// if v, ok := t.seen.Load(dedupeKey); ok {
-	// 	if time.Since(v.(time.Time)) < dedupeWindow {
-	// 		return
-	// 	}
-	// }
-	// t.seen.Store(dedupeKey, time.Now())
+	if t.dedup {
+		dedupeKey := clientIP + "|" + payload.URL
+		if v, ok := t.seen.Load(dedupeKey); ok {
+			if time.Since(v.(time.Time)) < t.dedupWindow {
+				return
+			}
+		}
+		t.seen.Store(dedupeKey, time.Now())
+	}
 
 	t.inflight.Go(func() {
 		t.processVisitor(site, clientIP, lang, payload)
