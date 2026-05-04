@@ -226,4 +226,3 @@ func TestExtractParagraphs_Unicode(t *testing.T) {
 		t.Fatalf("got %v, want [hello]", got)
 	}
 }
-

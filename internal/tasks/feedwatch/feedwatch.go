@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	bucket          = "feedwatch"
+	bucket           = "feedwatch"
 	telegramMaxRunes = 4096
 )
 

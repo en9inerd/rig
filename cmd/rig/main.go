@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/en9inerd/rig/internal/config"
+	"github.com/en9inerd/rig/internal/healthcheck"
 	"github.com/en9inerd/rig/internal/log"
 	"github.com/en9inerd/rig/internal/notify"
 	"github.com/en9inerd/rig/internal/runtime"
@@ -69,6 +70,8 @@ func initVisitorSites() error {
 }
 
 func run(ctx context.Context, args []string, getenv func(string) string) error {
+	cfg := config.ParseConfig(getenv)
+
 	for _, a := range args[1:] {
 		switch a {
 		case "--version", "-version":
@@ -76,13 +79,18 @@ func run(ctx context.Context, args []string, getenv func(string) string) error {
 			return nil
 		case "--init":
 			return initVisitorSites()
+		case "--healthcheck":
+			addr := cfg.HTTPAddr
+
+			if err := healthcheck.Check(addr, cfg.TLS.Enabled()); err != nil {
+				return err
+			}
+			return nil
 		}
 	}
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-
-	cfg := config.ParseConfig(getenv)
 
 	logger := log.NewLogger(cfg.Verbose)
 

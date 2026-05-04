@@ -20,7 +20,7 @@ func TestLoadConfig_Valid(t *testing.T) {
 	sitesFile := writeSitesFile(t, `[{"name":"blog","authToken":"abc","chatId":"123","tag":"Blog"}]`)
 	envs := map[string]string{
 		"RIG_VISITOR_SITES_FILE": sitesFile,
-		"RIG_VISITOR_GEOIP_DB":  "/custom/geo.mmdb",
+		"RIG_VISITOR_GEOIP_DB":   "/custom/geo.mmdb",
 	}
 	getenv := func(key string) string { return envs[key] }
 
