@@ -80,9 +80,7 @@ func run(ctx context.Context, args []string, getenv func(string) string) error {
 		case "--init":
 			return initVisitorSites()
 		case "--healthcheck":
-			addr := cfg.HTTPAddr
-
-			if err := healthcheck.Check(addr, cfg.TLS.Enabled()); err != nil {
+			if err := healthcheck.Check(cfg.HTTPAddr, cfg.TLS.Enabled()); err != nil {
 				return err
 			}
 			return nil
