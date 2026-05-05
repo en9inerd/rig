@@ -11,8 +11,8 @@ import (
 	"runtime/debug"
 	"syscall"
 
+	"github.com/en9inerd/go-pkgs/healthcheck"
 	"github.com/en9inerd/rig/internal/config"
-	"github.com/en9inerd/rig/internal/healthcheck"
 	"github.com/en9inerd/rig/internal/log"
 	"github.com/en9inerd/rig/internal/notify"
 	"github.com/en9inerd/rig/internal/runtime"
