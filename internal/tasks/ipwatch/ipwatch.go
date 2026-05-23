@@ -15,7 +15,6 @@ import (
 const (
 	bucket  = "ipwatch"
 	ipv4Key = "current_ipv4"
-	ipv6Key = "current_ipv6"
 )
 
 type Task struct {
@@ -25,7 +24,6 @@ type Task struct {
 	client   *httpclient.Client
 	store    *storage.Store
 	lastIPv4 string
-	lastIPv6 string
 }
 
 func New(notifier notify.Notifier, logger *slog.Logger, cfg Config, store *storage.Store) *Task {
@@ -44,7 +42,6 @@ func (t *Task) Name() string { return "ipwatch" }
 
 func (t *Task) Start(ctx context.Context) error {
 	t.lastIPv4, _ = t.store.Get(bucket, ipv4Key)
-	t.lastIPv6, _ = t.store.Get(bucket, ipv6Key)
 
 	// If no persisted state, do an initial fetch to seed the known IPs
 	// without notifying - matching the Node-RED behavior where the inject
@@ -58,17 +55,6 @@ func (t *Task) Start(ctx context.Context) error {
 			t.logger.Info("seeded initial IPv4", "ip", ip)
 		} else {
 			t.logger.Error("failed to fetch initial IPv4", "error", err)
-		}
-	}
-	if t.lastIPv6 == "" {
-		if ip, err := t.fetchIPv6(ctx); err == nil {
-			t.lastIPv6 = ip
-			if err := t.store.Set(bucket, ipv6Key, ip); err != nil {
-				t.logger.Error("failed to save initial IPv6 state", "error", err)
-			}
-			t.logger.Info("seeded initial IPv6", "ip", ip)
-		} else {
-			t.logger.Warn("IPv6 not available", "error", err)
 		}
 	}
 
@@ -101,17 +87,6 @@ func (t *Task) check(ctx context.Context) error {
 		changed = append(changed, fmt.Sprintf("IPv4: %s", ipv4))
 	}
 
-	if ipv6, err := t.fetchIPv6(ctx); err != nil {
-		t.logger.Warn("IPv6 check failed", "error", err)
-	} else if ipv6 != t.lastIPv6 {
-		t.logger.Info("IPv6 changed", "old", t.lastIPv6, "new", ipv6)
-		t.lastIPv6 = ipv6
-		if err := t.store.Set(bucket, ipv6Key, ipv6); err != nil {
-			t.logger.Error("failed to save IPv6 state", "error", err)
-		}
-		changed = append(changed, fmt.Sprintf("IPv6: %s", ipv6))
-	}
-
 	if len(changed) == 0 {
 		return nil
 	}
@@ -138,10 +113,3 @@ func (t *Task) fetchIPv4(ctx context.Context) (string, error) {
 	return result.IP, nil
 }
 
-func (t *Task) fetchIPv6(ctx context.Context) (string, error) {
-	var result ipifyResponse
-	if err := t.client.GetJSON(ctx, "https://api6.ipify.org?format=json", &result); err != nil {
-		return "", fmt.Errorf("fetch IPv6: %w", err)
-	}
-	return result.IP, nil
-}
