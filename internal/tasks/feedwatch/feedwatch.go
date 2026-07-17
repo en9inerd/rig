@@ -102,6 +102,16 @@ type atomEntry struct {
 	Title   string     `xml:"title"`
 	Link    []atomLink `xml:"link"`
 	Content string     `xml:"content"`
+	Summary string     `xml:"summary"`
+}
+
+// Zola (and other generators) omit <content> and emit only <summary>
+// for entries without a more-tag split.
+func (e *atomEntry) Body() string {
+	if e.Content != "" {
+		return e.Content
+	}
+	return e.Summary
 }
 
 type atomLink struct {
@@ -191,7 +201,7 @@ func (t *Task) check(ctx context.Context) error {
 			continue
 		}
 
-		paragraphs := extractParagraphs(entry.Content)
+		paragraphs := extractParagraphs(entry.Body())
 		summary := strings.Join(paragraphs, "\n\n")
 		escapedTitle := html.EscapeString(entry.Title)
 		escapedLink := html.EscapeString(link)
