@@ -24,6 +24,8 @@ RUN CGO_ENABLED=0 \
       -o /rig \
       ./cmd/rig
 
+RUN mkdir -p /data && chown 65532:65532 /data
+
 # ---------- Runtime ----------
 FROM gcr.io/distroless/static-debian12:nonroot
 
@@ -31,6 +33,7 @@ WORKDIR /app
 
 COPY --from=builder /rig /app/rig
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder --chown=65532:65532 /data /data
 
 USER nonroot:nonroot
 
